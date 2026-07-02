@@ -38,6 +38,7 @@ export default function AdminDashboard() {
     if (!isAuthenticated) { router.push('/adminlogin'); return; }
     if (user && user.role !== 'admin') { router.push('/'); return; }
     loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, router]);
 
   const loadAll = async () => {
@@ -62,13 +63,15 @@ export default function AdminDashboard() {
   if (!user || user.role !== 'admin') return null;
 
   // ── Stats ──
-  const totalRevenue = bookings.filter(b => b.paymentStatus === 'paid').reduce((s, b) => s + b.totalPrice, 0);
-  const availableRooms = rooms.filter(r => r.status === 'available').length;
-  const occupiedRooms = rooms.filter(r => r.status === 'occupied').length;
+  const totalRevenue = bookings
+    .filter((b: any) => b.paymentStatus === 'paid')
+    .reduce((s: number, b: any) => s + b.totalPrice, 0);
+  const availableRooms = rooms.filter((r: any) => r.status === 'available').length;
+  const occupiedRooms = rooms.filter((r: any) => r.status === 'occupied').length;
   const occupancyRate = rooms.length > 0 ? Math.round((occupiedRooms / rooms.length) * 100) : 0;
-  const admins = users.filter(u => u.role === 'admin');
-  const managers = users.filter(u => u.role === 'manager');
-  const customers = users.filter(u => u.role === 'user');
+  const admins = users.filter((u: any) => u.role === 'admin');
+  const managers = users.filter((u: any) => u.role === 'manager');
+  const customers = users.filter((u: any) => u.role === 'user');
 
   const navItems = [
     { id: 'overview', icon: LayoutDashboard, label: 'Overview', badge: null },
@@ -82,10 +85,15 @@ export default function AdminDashboard() {
   ];
 
   // ── CRUD Handlers ──
-
   const handleSaveRoom = async () => {
     try {
-      const data = { ...form, amenities: typeof form.amenities === 'string' ? form.amenities.split(',').map((a: string) => a.trim()) : form.amenities, images: form.image ? [form.image] : [] };
+      const data = {
+        ...form,
+        amenities: typeof form.amenities === 'string'
+          ? form.amenities.split(',').map((a: string) => a.trim())
+          : form.amenities,
+        images: form.image ? [form.image] : [],
+      };
       if (editingId) {
         await roomAPI.update(editingId, data);
         toast.success('Room updated');
@@ -148,9 +156,15 @@ export default function AdminDashboard() {
   };
 
   // ── Filtered data ──
-  const filteredRooms = rooms.filter(r => !search || r.roomNumber.includes(search) || r.hotelName.toLowerCase().includes(search.toLowerCase()));
-  const filteredBookings = bookings.filter(b => !search || b.userName.toLowerCase().includes(search.toLowerCase()));
-  const filteredAdmins = admins.filter(a => !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.email.toLowerCase().includes(search.toLowerCase()));
+  const filteredRooms = rooms.filter((r: any) =>
+    !search || r.roomNumber.includes(search) || r.hotelName.toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredBookings = bookings.filter((b: any) =>
+    !search || b.userName.toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredAdmins = admins.filter((a: any) =>
+    !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.email.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-950 flex pt-20 -mt-20">
@@ -260,7 +274,7 @@ export default function AdminDashboard() {
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                   <p className="text-sm text-gray-400 mb-1">Hotels</p>
                   <p className="text-3xl font-bold text-white">{hotels.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">{hotels.filter(h => h.status === 'active').length} active</p>
+                  <p className="text-xs text-gray-500 mt-1">{hotels.filter((h: any) => h.status === 'active').length} active</p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                   <p className="text-sm text-gray-400 mb-1">Rooms</p>
@@ -284,7 +298,7 @@ export default function AdminDashboard() {
                       ))}
                     </tr></thead>
                     <tbody>
-                      {bookings.slice(0, 5).map(b => (
+                      {bookings.slice(0, 5).map((b: any) => (
                         <tr key={b._id} className="border-b border-gray-800/50">
                           <td className="py-3 px-3 text-white">{b.userName}</td>
                           <td className="py-3 px-3 text-gray-400 truncate max-w-[100px]">{b.hotelName}</td>
@@ -342,7 +356,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {filteredAdmins.map(admin => (
+                  {filteredAdmins.map((admin: any) => (
                     <div key={admin._id}
                       className={`bg-gray-900 border rounded-2xl p-5 hover:border-red-500/40 transition-all relative ${
                         admin._id === user.id ? 'border-amber-500/40 ring-1 ring-amber-500/20' : 'border-gray-800'
@@ -454,7 +468,7 @@ export default function AdminDashboard() {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {filteredRooms.map(room => (
+                    {filteredRooms.map((room: any) => (
                       <tr key={room._id} className="border-b border-gray-800/50">
                         <td className="py-3 px-4 text-white font-medium">#{room.roomNumber}</td>
                         <td className="py-3 px-4 text-gray-400 max-w-[150px] truncate">{room.hotelName}</td>
@@ -499,7 +513,7 @@ export default function AdminDashboard() {
                     ))}
                   </tr></thead>
                   <tbody>
-                    {filteredBookings.map(b => (
+                    {filteredBookings.map((b: any) => (
                       <tr key={b._id} className="border-b border-gray-800/50">
                         <td className="py-3 px-4 text-xs text-gray-500 font-mono">{b.bookingRef}</td>
                         <td className="py-3 px-4 text-white">{b.userName}<br /><span className="text-xs text-gray-500">{b.userEmail}</span></td>
@@ -534,8 +548,8 @@ export default function AdminDashboard() {
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {managers.map(mgr => {
-                  const hotel = hotels.find(h => h._id === mgr.managedHotelId);
+                {managers.map((mgr: any) => {
+                  const hotel = hotels.find((h: any) => h._id === mgr.managedHotelId);
                   return (
                     <div key={mgr._id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
                       <div className="flex items-center gap-3 mb-4">
@@ -571,7 +585,7 @@ export default function AdminDashboard() {
                 <div className="text-center py-20 bg-gray-900 rounded-2xl border border-gray-800"><MessageSquare className="w-12 h-12 text-gray-700 mx-auto mb-3" /><p className="text-gray-400">No messages yet</p></div>
               ) : (
                 <div className="space-y-3">
-                  {contacts.map(msg => (
+                  {contacts.map((msg: any) => (
                     <div key={msg._id} className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                       <div className="flex items-start justify-between mb-2">
                         <div><h3 className="font-bold text-white">{msg.name}</h3><p className="text-xs text-gray-400">{msg.email}</p></div>
@@ -591,50 +605,117 @@ export default function AdminDashboard() {
 
       {/* ROOM MODAL */}
       {modal === 'room' && (
-        <Modal title={editingId ? 'Edit Room' : 'Add Room'} onClose={() => { setModal(null); setEditingId(null); setForm({}); }} onSave={handleSaveRoom}>
-          <Select label="Hotel *" value={form.hotelId || ''} onChange={v => setForm({ ...form, hotelId: v })}
-            options={hotels.map(h => ({ label: h.name, value: h._id }))} />
+        <Modal
+          title={editingId ? 'Edit Room' : 'Add Room'}
+          onClose={() => { setModal(null); setEditingId(null); setForm({}); }}
+          onSave={handleSaveRoom}
+        >
+          <Select
+            label="Hotel *"
+            value={form.hotelId || ''}
+            onChange={(v: string) => setForm({ ...form, hotelId: v })}
+            options={hotels.map((h: any) => ({ label: h.name, value: h._id }))}
+          />
           <div className="grid grid-cols-2 gap-3">
-            {[
-              ['roomNumber', 'Room Number', 'text'], ['price', 'Price (₹)', 'number'],
-              ['capacity', 'Capacity', 'number'], ['size', 'Size (m²)', 'number'],
+            {([
+              ['roomNumber', 'Room Number', 'text'],
+              ['price', 'Price (₹)', 'number'],
+              ['capacity', 'Capacity', 'number'],
+              ['size', 'Size (m²)', 'number'],
               ['floor', 'Floor', 'number'],
-            ].map(([key, label, type]) => (
-              <Input key={key} label={label} value={form[key] || ''} onChange={v => setForm({ ...form, [key]: type === 'number' ? Number(v) : v })} type={type} />
+            ] as const).map(([key, label, type]) => (
+              <Input
+                key={key}
+                label={label}
+                value={form[key] || ''}
+                onChange={(v: string) => setForm({ ...form, [key]: type === 'number' ? Number(v) : v })}
+                type={type}
+              />
             ))}
-            <Select label="Type" value={form.type || 'standard'} onChange={v => setForm({ ...form, type: v })} options={['standard', 'deluxe', 'suite', 'presidential']} />
+            <Select
+              label="Type"
+              value={form.type || 'standard'}
+              onChange={(v: string) => setForm({ ...form, type: v })}
+              options={['standard', 'deluxe', 'suite', 'presidential']}
+            />
           </div>
-          <TextArea label="Description" value={form.description || ''} onChange={v => setForm({ ...form, description: v })} />
-          <Input label="Amenities (comma-separated)" value={form.amenities || ''} onChange={v => setForm({ ...form, amenities: v })} />
-          <Input label="Image URL" value={form.image || ''} onChange={v => setForm({ ...form, image: v })} type="url" />
-          <Select label="Status" value={form.status || 'available'} onChange={v => setForm({ ...form, status: v })} options={['available', 'occupied', 'maintenance']} />
+          <TextArea
+            label="Description"
+            value={form.description || ''}
+            onChange={(v: string) => setForm({ ...form, description: v })}
+          />
+          <Input
+            label="Amenities (comma-separated)"
+            value={form.amenities || ''}
+            onChange={(v: string) => setForm({ ...form, amenities: v })}
+          />
+          <Input
+            label="Image URL"
+            value={form.image || ''}
+            onChange={(v: string) => setForm({ ...form, image: v })}
+            type="url"
+          />
+          <Select
+            label="Status"
+            value={form.status || 'available'}
+            onChange={(v: string) => setForm({ ...form, status: v })}
+            options={['available', 'occupied', 'maintenance']}
+          />
         </Modal>
       )}
 
       {/* MANAGER MODAL */}
       {modal === 'manager' && (
-        <Modal title="Add Manager" onClose={() => { setModal(null); setForm({}); }} onSave={handleSaveManager}>
-          {[
-            ['name', 'Full Name *', 'text'], ['email', 'Email *', 'email'],
-            ['phone', 'Phone', 'tel'], ['password', 'Password *', 'text'],
-          ].map(([key, label, type]) => (
-            <Input key={key} label={label} value={form[key] || ''} onChange={v => setForm({ ...form, [key]: v })} type={type} />
+        <Modal
+          title="Add Manager"
+          onClose={() => { setModal(null); setForm({}); }}
+          onSave={handleSaveManager}
+        >
+          {([
+            ['name', 'Full Name *', 'text'],
+            ['email', 'Email *', 'email'],
+            ['phone', 'Phone', 'tel'],
+            ['password', 'Password *', 'text'],
+          ] as const).map(([key, label, type]) => (
+            <Input
+              key={key}
+              label={label}
+              value={form[key] || ''}
+              onChange={(v: string) => setForm({ ...form, [key]: v })}
+              type={type}
+            />
           ))}
-          <Select label="Assign Hotel" value={form.managedHotelId || ''} onChange={v => setForm({ ...form, managedHotelId: v })}
-            options={[{ label: '-- None --', value: '' }, ...hotels.map(h => ({ label: h.name, value: h._id }))]} />
+          <Select
+            label="Assign Hotel"
+            value={form.managedHotelId || ''}
+            onChange={(v: string) => setForm({ ...form, managedHotelId: v })}
+            options={[{ label: '-- None --', value: '' }, ...hotels.map((h: any) => ({ label: h.name, value: h._id }))]}
+          />
         </Modal>
       )}
 
       {/* ADMIN MODAL */}
       {modal === 'admin' && (
-        <AdminModal onClose={() => { setModal(null); setForm({}); }} onSave={handleSaveAdmin} form={form} setForm={setForm} />
+        <AdminModal
+          onClose={() => { setModal(null); setForm({}); }}
+          onSave={handleSaveAdmin}
+          form={form}
+          setForm={setForm}
+        />
       )}
     </div>
   );
 }
 
 // ─── ADMIN MODAL ───
-function AdminModal({ onClose, onSave, form, setForm }: any) {
+interface AdminModalProps {
+  onClose: () => void;
+  onSave: () => void;
+  form: any;
+  setForm: (f: any) => void;
+}
+
+function AdminModal({ onClose, onSave, form, setForm }: AdminModalProps) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="bg-gray-900 border border-red-500/30 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl shadow-red-500/10">
@@ -734,4 +815,3 @@ function AdminModal({ onClose, onSave, form, setForm }: any) {
     </div>
   );
 }
-
