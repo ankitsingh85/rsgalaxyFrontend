@@ -7,8 +7,11 @@ export default function Footer() {
       <div className="h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14 grid grid-cols-1 md:grid-cols-4 gap-10">
         <div>
-          <p className="font-playfair text-2xl font-bold text-amber-400 mb-1">RS GALAXY</p>
-          <p className="text-xs text-amber-500/80 tracking-[0.2em] uppercase mb-3">Hotel · Always with you</p>
+          <img
+            src="/logo.png"
+            alt="RS Galaxy Hotel"
+            className="h-28 w-auto object-contain mb-4"
+          />
           <p className="text-sm text-gray-400 leading-relaxed">Premium 5-star luxury hotel brand across Goa & Rishikesh. Always with you.</p>
         </div>
         {[

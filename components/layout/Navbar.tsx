@@ -40,9 +40,12 @@ export default function Navbar() {
       <div className="h-0.5 bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          <Link href="/" className="flex flex-col leading-none">
-            <span className="font-playfair text-2xl font-bold text-amber-600 tracking-wide">RS GALAXY</span>
-            <span className="text-[10px] text-amber-500 tracking-[0.3em] uppercase">Hotel · Always with you</span>
+          <Link href="/" className="flex items-center">
+            <img
+              src="/logo.png"
+              alt="RS Galaxy Hotel"
+              className="h-16 w-auto object-contain"
+            />
           </Link>
 
           <div className="hidden lg:flex items-center gap-1">
