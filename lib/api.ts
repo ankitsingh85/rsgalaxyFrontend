@@ -1,7 +1,12 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const LOCAL_API_URL = 'http://localhost:5000/api';
+const PRODUCTION_API_URL = 'https://rsgalaxybackend.onrender.com/api';
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === 'production' ? PRODUCTION_API_URL : LOCAL_API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -90,8 +95,45 @@ export const bookingAPI = {
   delete: (id: string) => api.delete(`/bookings/${id}`).then(r => r.data),
 };
 
+// ── COUPONS ──
+export const couponAPI = {
+  getAll: () => api.get('/coupons').then(r => r.data),
+  create: (data: any) => api.post('/coupons', data).then(r => r.data),
+  update: (id: string, data: any) => api.put(`/coupons/${id}`, data).then(r => r.data),
+  delete: (id: string) => api.delete(`/coupons/${id}`).then(r => r.data),
+};
+
+// BLOGS
+export const blogAPI = {
+  getPublished: (params?: any) => api.get('/blogs', { params }).then(r => r.data),
+  getPublishedOne: (slug: string) => api.get(`/blogs/${slug}`).then(r => r.data),
+  getAdminAll: (params?: any) => api.get('/blogs/admin', { params }).then(r => r.data),
+  getAdminOne: (id: string) => api.get(`/blogs/admin/${id}`).then(r => r.data),
+  create: (data: any) => api.post('/blogs/admin', data).then(r => r.data),
+  update: (id: string, data: any) => api.put(`/blogs/admin/${id}`, data).then(r => r.data),
+  archive: (id: string) => api.delete(`/blogs/admin/${id}`).then(r => r.data),
+  hardDelete: (id: string) => api.delete(`/blogs/admin/${id}/permanent`).then(r => r.data),
+  uploadCover: (file: File) => {
+    const formData = new FormData();
+    formData.append('cover', file);
+    return api.post('/blogs/admin/upload-cover', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+  },
+};
+
 // ── USERS ──
 // ── USERS ──
+// NOTIFICATIONS
+export const notificationAPI = {
+  getAll: (params?: any) => api.get('/notifications', { params }).then(r => r.data),
+  getMine: () => api.get('/notifications/my').then(r => r.data),
+  create: (data: any) => api.post('/notifications', data).then(r => r.data),
+  markMineRead: (id: string) => api.put(`/notifications/my/${id}/read`, {}).then(r => r.data),
+  markRead: (ids: string[]) => api.put('/notifications/mark-read', { ids }).then(r => r.data),
+  snooze: (ids: string[], until: string) => api.put('/notifications/snooze', { ids, until }).then(r => r.data),
+  delete: (id: string) => api.delete(`/notifications/${id}`).then(r => r.data),
+  cleanup: (days: number) => api.delete('/notifications/cleanup', { data: { days } }).then(r => r.data),
+};
+
 export const userAPI = {
   getAll: (params?: any) => api.get('/users', { params }).then(r => r.data),
   getDeleted: () => api.get('/users/deleted').then(r => r.data),

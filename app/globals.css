@@ -38,3 +38,28 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.4) sepia(1) saturate(3) hue-rotate(20deg);
   cursor: pointer;
 }
+
+.blog-content h1,
+.blog-content h2,
+.blog-content h3 {
+  color: #111827;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 2rem 0 0.85rem;
+}
+
+.blog-content h1 { font-size: 2rem; }
+.blog-content h2 { font-size: 1.6rem; }
+.blog-content h3 { font-size: 1.3rem; }
+.blog-content p { margin: 1rem 0; }
+.blog-content ul,
+.blog-content ol { margin: 1rem 0 1rem 1.5rem; }
+.blog-content ul { list-style: disc; }
+.blog-content ol { list-style: decimal; }
+.blog-content blockquote {
+  border-left: 4px solid #f59e0b;
+  color: #4b5563;
+  font-style: italic;
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+}

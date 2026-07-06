@@ -1,25 +1,43 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, CreditCard, CheckCircle, Clock } from 'lucide-react';
-import { bookingAPI } from '@/lib/api';
+import { Bell, Calendar, CreditCard, CheckCircle, CheckCheck, Clock } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { bookingAPI, notificationAPI } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
-import type { Booking } from '@/types';
+import type { Booking, UserNotification } from '@/types';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/login'); return; }
-    bookingAPI.getAll().then(data => setBookings(data.bookings)).finally(() => setLoading(false));
+    Promise.all([
+      bookingAPI.getAll(),
+      notificationAPI.getMine().catch(() => ({ notifications: [] })),
+    ]).then(([bookingData, notificationData]) => {
+      setBookings(bookingData.bookings || []);
+      setNotifications(notificationData.notifications || []);
+    }).finally(() => setLoading(false));
   }, [isAuthenticated, router]);
 
   const confirmed = bookings.filter(b => b.status === 'confirmed').length;
   const pending = bookings.filter(b => b.status === 'pending').length;
   const totalSpent = bookings.filter(b => b.paymentStatus === 'paid').reduce((s, b) => s + b.totalPrice, 0);
+  const unreadNotifications = notifications.filter(notification => !notification.isRead).length;
+
+  const markNotificationRead = async (id: string) => {
+    try {
+      await notificationAPI.markMineRead(id);
+      setNotifications(prev => prev.map(item => item._id === id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#faf9f6]">
@@ -46,6 +64,50 @@ export default function DashboardPage() {
               <p className="text-xs text-gray-500">{label}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold text-gray-900">Notifications</h2>
+            {unreadNotifications > 0 && (
+              <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-100 px-3 py-1 rounded-full">
+                {unreadNotifications} unread
+              </span>
+            )}
+          </div>
+          {notifications.length === 0 ? (
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 text-sm text-gray-500">
+              No notifications yet.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {notifications.slice(0, 5).map(notification => (
+                <div key={notification._id} className={`bg-white border rounded-2xl p-5 flex items-start gap-4 ${
+                  notification.isRead ? 'border-stone-200' : 'border-amber-200 shadow-sm'
+                }`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    notification.isRead ? 'bg-stone-100 text-stone-500' : 'bg-amber-50 text-amber-600'
+                  }`}>
+                    <Bell className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-gray-900">{notification.title}</h3>
+                      {!notification.isRead && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{notification.message}</p>
+                    <p className="text-xs text-gray-400 mt-2">{new Date(notification.createdAt).toLocaleString()}</p>
+                  </div>
+                  {!notification.isRead && (
+                    <button onClick={() => markNotificationRead(notification._id)}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 px-3 py-2 rounded-xl">
+                      <CheckCheck className="w-4 h-4" /> Read
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <h2 className="font-bold text-gray-900 mb-4">My Bookings</h2>

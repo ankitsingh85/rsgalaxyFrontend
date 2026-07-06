@@ -28,6 +28,7 @@ export default function Navbar() {
     { label: 'Hotels',    href: '/hotels' },
     { label: 'Rooms',     href: '/room' },
     { label: 'Amenities', href: '/amenities' },
+    { label: 'Blogs',     href: '/blogs' },
     { label: 'Offers',    href: '/offers' },
     { label: 'Contact',   href: '/contact' },
   ];

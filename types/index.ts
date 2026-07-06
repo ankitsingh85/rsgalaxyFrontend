@@ -90,3 +90,64 @@ export interface Booking {
   specialRequests?: string;
   createdAt: string;
 }
+
+export interface Blog {
+  _id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  content: string;
+  coverImage?: string;
+  category: string;
+  tags: string[];
+  status: 'draft' | 'published' | 'archived';
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords: string[];
+  publishedAt?: string;
+  archivedAt?: string;
+  deletedAt?: string;
+  authorName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationRecipient {
+  recipientType: 'user' | 'hotel';
+  recipientId: string;
+  name?: string;
+  email?: string;
+  readAt?: string;
+  snoozedUntil?: string;
+}
+
+export interface AdminNotification {
+  _id: string;
+  title: string;
+  message: string;
+  targetType: 'all' | 'users' | 'hotels';
+  channels: Array<'push' | 'email'>;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  recipients: NotificationRecipient[];
+  emailSentCount: number;
+  pushQueuedCount: number;
+  readByAdminIds: string[];
+  isRead?: boolean;
+  isSnoozed?: boolean;
+  snoozedUntil?: string;
+  createdByName?: string;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserNotification {
+  _id: string;
+  title: string;
+  message: string;
+  channels: Array<'push' | 'email'>;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+}
