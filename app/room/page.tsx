@@ -1,40 +1,40 @@
-'use client';
-
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { BedDouble, ChevronRight, Search, Users } from 'lucide-react';
-import { roomAPI } from '@/lib/api';
+import { BedDouble, ChevronRight, Users } from 'lucide-react';
+import { API_URL } from '@/lib/api';
+import SearchFilters from '@/components/room/SearchFilters';
 import type { Room } from '@/types';
 
-const roomTypes = ['all', 'standard', 'deluxe', 'suite', 'presidential'] as const;
+type SearchParams = { [key: string]: string | string[] | undefined };
 
-export default function RoomsPage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [type, setType] = useState<(typeof roomTypes)[number]>('all');
+async function fetchRooms(searchParams: SearchParams): Promise<Room[]> {
+  const params = new URLSearchParams();
+  const passthrough = ['type', 'city', 'guests', 'minPrice', 'maxPrice', 'minRating', 'search'];
+  for (const key of passthrough) {
+    const value = searchParams[key];
+    if (typeof value === 'string' && value) params.set(key, value);
+  }
 
-  useEffect(() => {
-    roomAPI
-      .getAll()
-      .then(data => setRooms(data.rooms ?? []))
-      .finally(() => setLoading(false));
-  }, []);
+  try {
+    const res = await fetch(`${API_URL}/rooms?${params.toString()}`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.rooms ?? [];
+  } catch {
+    return [];
+  }
+}
 
-  const filteredRooms = useMemo(() => {
-    const query = search.trim().toLowerCase();
+export default async function RoomsPage({ searchParams }: { searchParams: SearchParams }) {
+  const rooms = await fetchRooms(searchParams);
+  const checkIn = typeof searchParams.checkIn === 'string' ? searchParams.checkIn : '';
+  const checkOut = typeof searchParams.checkOut === 'string' ? searchParams.checkOut : '';
+  const guests = typeof searchParams.guests === 'string' ? searchParams.guests : '';
 
-    return rooms.filter(room => {
-      const matchesType = type === 'all' || room.type === type;
-      const matchesSearch =
-        !query ||
-        room.hotelName.toLowerCase().includes(query) ||
-        room.roomNumber.toLowerCase().includes(query) ||
-        room.type.toLowerCase().includes(query);
-
-      return matchesType && matchesSearch;
-    });
-  }, [rooms, search, type]);
+  const detailQuery = new URLSearchParams();
+  if (checkIn) detailQuery.set('checkIn', checkIn);
+  if (checkOut) detailQuery.set('checkOut', checkOut);
+  if (guests) detailQuery.set('guests', guests);
+  const detailSuffix = detailQuery.toString() ? `?${detailQuery.toString()}` : '';
 
   return (
     <div className="min-h-screen bg-[#faf9f6]">
@@ -46,46 +46,17 @@ export default function RoomsPage() {
           <h1 className="font-playfair text-5xl font-bold text-gray-900">Rooms & Suites</h1>
           <p className="text-gray-500 mt-2">Choose a room across RS Galaxy properties.</p>
 
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                value={search}
-                onChange={event => setSearch(event.target.value)}
-                placeholder="Search rooms or hotels..."
-                className="w-full bg-white border border-stone-200 pl-10 pr-4 py-3 rounded-xl text-sm focus:outline-none focus:border-amber-400 shadow-sm"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {roomTypes.map(roomType => (
-                <button
-                  key={roomType}
-                  type="button"
-                  onClick={() => setType(roomType)}
-                  className={`px-4 py-2.5 rounded-xl text-sm font-bold capitalize border transition-all ${
-                    type === roomType
-                      ? 'bg-amber-500 border-amber-500 text-white shadow-md'
-                      : 'bg-white border-stone-200 text-gray-600 hover:border-amber-300 hover:text-amber-700'
-                  }`}
-                >
-                  {roomType}
-                </button>
-              ))}
-            </div>
-          </div>
+          <SearchFilters />
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        {loading ? (
-          <div className="text-center py-20 text-gray-400">Loading...</div>
-        ) : filteredRooms.length ? (
+        {rooms.length ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredRooms.map(room => (
+            {rooms.map(room => (
               <Link
                 key={room._id}
-                href={`/room/${room._id}`}
+                href={`/room/${room._id}${detailSuffix}`}
                 className="group bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:border-amber-200 transition-all"
               >
                 <div className="relative h-56 overflow-hidden bg-stone-100">
@@ -147,7 +118,7 @@ export default function RoomsPage() {
         ) : (
           <div className="text-center py-20 bg-white border border-stone-200 rounded-2xl">
             <p className="font-bold text-gray-900">No rooms found</p>
-            <p className="text-sm text-gray-500 mt-1">Try changing your search or room type.</p>
+            <p className="text-sm text-gray-500 mt-1">Try changing your search or filters.</p>
           </div>
         )}
       </div>

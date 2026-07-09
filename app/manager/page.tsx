@@ -3,42 +3,99 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  LayoutDashboard, Hotel, Bed, Calendar, LogOut, Plus, Edit2, Trash2,
-  X, Save, Search, Eye, TrendingUp, DollarSign, CheckCircle, Users, Star, MapPin
+  LayoutDashboard, Hotel, Bed, Calendar, LogOut,
+  Search, Eye, TrendingUp, DollarSign, CheckCircle, Users, Star, MapPin,
+  UtensilsCrossed, Sparkles, UserCog, TicketPercent, Newspaper, Bell,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
-import { hotelAPI, roomAPI, bookingAPI } from '@/lib/api';
+import { hotelAPI, bookingAPI, menuItemAPI, orderAPI, userAPI, couponAPI, notificationAPI, blogAPI } from '@/lib/api';
 import toast from 'react-hot-toast';
+import RoomsManager from '@/components/admin/RoomsManager';
+import RestaurantManager from '@/components/admin/RestaurantManager';
+import AmenitiesManager from '@/components/admin/AmenitiesManager';
+import StaffManager from '@/components/admin/StaffManager';
+import CustomersManager from '@/components/admin/CustomersManager';
+import CouponsManager from '@/components/admin/CouponsManager';
+import NotificationsManager from '@/components/admin/NotificationsManager';
+import BlogsManager from '@/components/admin/BlogsManager';
+import type { ManagerPermissions } from '@/types';
+
+type ManagerTab = 'overview' | 'hotel' | 'rooms' | 'bookings' | 'restaurant' | 'amenities' | 'staff' | 'customers' | 'coupons' | 'notifications' | 'blogs';
+
+// Always-visible tabs (no permission key) plus one entry per permission module —
+// gated purely on 'view' so a manager only ever sees what they've been granted.
+const MODULE_NAV: { id: ManagerTab; icon: any; label: string; permKey?: keyof ManagerPermissions }[] = [
+  { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
+  { id: 'hotel', icon: Hotel, label: 'My Hotel' },
+  { id: 'rooms', icon: Bed, label: 'Rooms', permKey: 'rooms' },
+  { id: 'bookings', icon: Calendar, label: 'Bookings', permKey: 'bookings' },
+  { id: 'restaurant', icon: UtensilsCrossed, label: 'Restaurant', permKey: 'restaurant' },
+  { id: 'amenities', icon: Sparkles, label: 'Amenities', permKey: 'amenities' },
+  { id: 'staff', icon: UserCog, label: 'Staff', permKey: 'staff' },
+  { id: 'customers', icon: Users, label: 'Customers', permKey: 'customers' },
+  { id: 'coupons', icon: TicketPercent, label: 'Coupons', permKey: 'coupons' },
+  { id: 'notifications', icon: Bell, label: 'Notifications', permKey: 'notifications' },
+  { id: 'blogs', icon: Newspaper, label: 'Blogs', permKey: 'blogs' },
+];
 
 export default function ManagerDashboard() {
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'hotel' | 'rooms' | 'bookings'>('overview');
+  const { user, isAuthenticated, logout, loadUser } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<ManagerTab>('overview');
   const [search, setSearch] = useState('');
 
   const [myHotel, setMyHotel] = useState<any>(null);
   const [myRooms, setMyRooms] = useState<any[]>([]);
   const [myBookings, setMyBookings] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [blogs, setBlogs] = useState<any[]>([]);
 
-  const [modal, setModal] = useState<'room' | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<any>({});
+  useEffect(() => {
+    // The login response only returns a trimmed user object (no `permissions`) —
+    // refresh from /auth/me once on mount so the full profile (with permissions) loads.
+    loadUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/managerlogin'); return; }
     if (user && user.role !== 'manager') { router.push('/'); return; }
     if (user) loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, router]);
 
   const loadAll = async () => {
     try {
+      const tasks: Promise<any>[] = [];
+
       if (user?.managedHotelId) {
-        const h = await hotelAPI.getOne(user.managedHotelId);
-        setMyHotel(h.hotel);
-        setMyRooms(h.rooms || []);
+        tasks.push(hotelAPI.getOne(user.managedHotelId).then(h => { setMyHotel(h.hotel); setMyRooms(h.rooms || []); }));
       }
-      const b = await bookingAPI.getAll();
-      setMyBookings(b.bookings || []);
+      tasks.push(bookingAPI.getAll().then(b => setMyBookings(b.bookings || [])).catch(() => {}));
+
+      const perms = user?.permissions;
+      if (perms?.restaurant?.view) {
+        tasks.push(menuItemAPI.getAll().then(d => setMenuItems(d.menuItems || [])).catch(() => {}));
+        tasks.push(orderAPI.getAll().then(d => setOrders(d.orders || [])).catch(() => {}));
+      }
+      if (perms?.customers?.view) {
+        tasks.push(userAPI.getAll().then(d => setCustomers((d.users || []).filter((u: any) => u.role === 'user'))).catch(() => {}));
+      }
+      if (perms?.coupons?.view) {
+        tasks.push(couponAPI.getAll().then(d => setCoupons(d.coupons || [])).catch(() => {}));
+      }
+      if (perms?.notifications?.view) {
+        tasks.push(notificationAPI.getAll().then(d => setNotifications(d.notifications || [])).catch(() => {}));
+      }
+      if (perms?.blogs?.view) {
+        tasks.push(blogAPI.getAdminAll().then(d => setBlogs(d.blogs || [])).catch(() => {}));
+      }
+
+      await Promise.all(tasks);
     } catch (err: any) { toast.error('Failed to load'); }
   };
 
@@ -47,38 +104,9 @@ export default function ManagerDashboard() {
   const revenue = myBookings.filter(b => b.paymentStatus === 'paid').reduce((s, b) => s + b.totalPrice, 0);
   const availableRooms = myRooms.filter(r => r.status === 'available').length;
   const occupancyRate = myRooms.length > 0 ? Math.round(((myRooms.length - availableRooms) / myRooms.length) * 100) : 0;
+  const myHotelList = myHotel ? [myHotel] : [];
 
-  const handleSaveRoom = async () => {
-    try {
-      const data = {
-        ...form,
-        hotelId: myHotel._id,
-        amenities: typeof form.amenities === 'string' ? form.amenities.split(',').map((a: string) => a.trim()) : form.amenities,
-        images: form.image ? [form.image] : [],
-      };
-      if (editingId) await roomAPI.update(editingId, data);
-      else await roomAPI.create(data);
-      toast.success(editingId ? 'Room updated' : 'Room created');
-      setModal(null); setEditingId(null); setForm({});
-      loadAll();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  const handleDeleteRoom = async (id: string) => {
-    if (!confirm('Delete this room?')) return;
-    try { await roomAPI.delete(id); toast.success('Deleted'); loadAll(); } catch (err: any) { toast.error(err.message); }
-  };
-
-  const updateRoomStatus = async (id: string, status: string) => {
-    try { await roomAPI.update(id, { status }); loadAll(); } catch (err: any) { toast.error(err.message); }
-  };
-
-  const navItems = [
-    { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
-    { id: 'hotel',    icon: Hotel,           label: 'My Hotel' },
-    { id: 'rooms',    icon: Bed,             label: 'Rooms' },
-    { id: 'bookings', icon: Calendar,        label: 'Bookings' },
-  ];
+  const navItems = MODULE_NAV.filter(m => !m.permKey || user.permissions?.[m.permKey]?.view);
 
   return (
     <div className="min-h-screen bg-gray-950 flex pt-20 -mt-20">
@@ -94,9 +122,9 @@ export default function ManagerDashboard() {
             <div><p className="text-sm font-bold text-white">{user.name}</p><p className="text-xs text-gray-400">Hotel Manager</p></div>
           </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map(({ id, icon: Icon, label }) => (
-            <button key={id} onClick={() => setActiveTab(id as any)}
+            <button key={id} onClick={() => setActiveTab(id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
                 activeTab === id ? 'bg-amber-500/15 text-amber-400 border border-amber-500/20' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}>
@@ -115,10 +143,10 @@ export default function ManagerDashboard() {
       </aside>
 
       {/* Mobile bottom nav */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-800 flex">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-900 border-t border-gray-800 flex overflow-x-auto">
         {navItems.map(({ id, icon: Icon, label }) => (
-          <button key={id} onClick={() => setActiveTab(id as any)}
-            className={`flex-1 flex flex-col items-center py-3 text-xs ${activeTab === id ? 'text-amber-400' : 'text-gray-500'}`}>
+          <button key={id} onClick={() => setActiveTab(id)}
+            className={`flex-1 flex flex-col items-center py-3 text-xs shrink-0 px-2 ${activeTab === id ? 'text-amber-400' : 'text-gray-500'}`}>
             <Icon className="w-5 h-5 mb-1" />{label}
           </button>
         ))}
@@ -239,58 +267,7 @@ export default function ManagerDashboard() {
 
           {/* ROOMS */}
           {activeTab === 'rooms' && (
-            <>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Rooms ({myRooms.length})</h2>
-                  <p className="text-gray-400 text-sm">{availableRooms} available</p>
-                </div>
-                <button onClick={() => { setEditingId(null); setForm({ type: 'standard', status: 'available', capacity: 2, floor: 1, size: 30 }); setModal('room'); }}
-                  className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold">
-                  <Plus className="w-4 h-4" /> Add Room
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {myRooms.map(room => (
-                  <div key={room._id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                    <div className="relative h-40">
-                      <img src={room.images?.[0] || 'https://images.pexels.com/photos/3688261/pexels-photo-3688261.jpeg?w=400'} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full capitalize">{room.type}</div>
-                    </div>
-                    <div className="p-4">
-                      <div className="flex justify-between mb-2">
-                        <h3 className="font-bold text-white">Room {room.roomNumber}</h3>
-                        <span className="text-amber-400 font-bold">₹{room.price.toLocaleString()}<span className="text-xs text-gray-500">/night</span></span>
-                      </div>
-                      <div className="flex gap-3 text-xs text-gray-400 mb-3">
-                        <span><Users className="w-3 h-3 inline" /> {room.capacity}</span>
-                        <span>{room.size}m²</span>
-                        <span>Floor {room.floor}</span>
-                      </div>
-                      <select value={room.status} onChange={e => updateRoomStatus(room._id, e.target.value)}
-                        className={`w-full mb-3 text-xs px-3 py-2 rounded-lg border bg-gray-800 outline-none ${
-                          room.status === 'available' ? 'border-green-500/30 text-green-400' :
-                          room.status === 'occupied'  ? 'border-red-500/30 text-red-400' :
-                          'border-yellow-500/30 text-yellow-400'
-                        }`}>
-                        <option value="available">Available</option>
-                        <option value="occupied">Occupied</option>
-                        <option value="maintenance">Maintenance</option>
-                      </select>
-                      <div className="flex gap-2">
-                        <button onClick={() => { setEditingId(room._id); setForm({ ...room, amenities: room.amenities.join(', '), image: room.images?.[0] || '' }); setModal('room'); }}
-                          className="flex-1 flex items-center justify-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2 rounded-lg text-xs">
-                          <Edit2 className="w-3 h-3" /> Edit
-                        </button>
-                        <button onClick={() => handleDeleteRoom(room._id)} className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs">
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
+            <RoomsManager hotels={myHotelList} rooms={myRooms} onReload={loadAll} />
           )}
 
           {/* BOOKINGS */}
@@ -325,72 +302,44 @@ export default function ManagerDashboard() {
               )}
             </>
           )}
+
+          {/* RESTAURANT */}
+          {activeTab === 'restaurant' && (
+            <RestaurantManager hotels={myHotelList} menuItems={menuItems} orders={orders} onReload={loadAll} />
+          )}
+
+          {/* AMENITIES & BILLING */}
+          {activeTab === 'amenities' && (
+            <AmenitiesManager hotels={myHotelList} bookings={myBookings} />
+          )}
+
+          {/* STAFF */}
+          {activeTab === 'staff' && (
+            <StaffManager hotels={myHotelList} />
+          )}
+
+          {/* CUSTOMERS */}
+          {activeTab === 'customers' && (
+            <CustomersManager customers={customers} bookings={myBookings} hotels={myHotelList} onReload={loadAll} />
+          )}
+
+          {/* COUPONS */}
+          {activeTab === 'coupons' && (
+            <CouponsManager coupons={coupons} onReload={loadAll} />
+          )}
+
+          {/* NOTIFICATIONS */}
+          {activeTab === 'notifications' && (
+            <NotificationsManager notifications={notifications} users={customers} hotels={myHotelList} onReload={loadAll} />
+          )}
+
+          {/* BLOGS */}
+          {activeTab === 'blogs' && (
+            <BlogsManager blogs={blogs} onReload={loadAll} />
+          )}
         </div>
       </div>
 
-      {/* Room Modal */}
-      {modal === 'room' && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-800">
-              <h2 className="text-xl font-bold text-white">{editingId ? 'Edit Room' : 'Add Room'}</h2>
-              <button onClick={() => { setModal(null); setEditingId(null); setForm({}); }} className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-5 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ['roomNumber', 'Room Number', 'text'], ['price', 'Price (₹)', 'number'],
-                  ['capacity', 'Capacity', 'number'], ['size', 'Size (m²)', 'number'],
-                  ['floor', 'Floor', 'number'],
-                ].map(([key, label, type]) => (
-                  <div key={key}>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">{label}</label>
-                    <input type={type} value={form[key] || ''} onChange={e => setForm({ ...form, [key]: type === 'number' ? Number(e.target.value) : e.target.value })}
-                      className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
-                  </div>
-                ))}
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Type</label>
-                  <select value={form.type || 'standard'} onChange={e => setForm({ ...form, type: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500">
-                    {['standard', 'deluxe', 'suite', 'presidential'].map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Description</label>
-                <textarea value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} rows={2}
-                  className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500 resize-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Amenities (comma-separated)</label>
-                <input type="text" value={form.amenities || ''} onChange={e => setForm({ ...form, amenities: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Image URL</label>
-                <input type="url" value={form.image || ''} onChange={e => setForm({ ...form, image: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1">Status</label>
-                <select value={form.status || 'available'} onChange={e => setForm({ ...form, status: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:border-amber-500">
-                  <option value="available">Available</option>
-                  <option value="occupied">Occupied</option>
-                  <option value="maintenance">Maintenance</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-3 p-5 border-t border-gray-800">
-              <button onClick={() => { setModal(null); setEditingId(null); setForm({}); }} className="flex-1 border border-gray-700 text-gray-300 hover:bg-gray-800 py-3 rounded-xl font-semibold">Cancel</button>
-              <button onClick={handleSaveRoom} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2">
-                <Save className="w-4 h-4" /> Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

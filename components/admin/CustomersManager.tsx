@@ -2,14 +2,16 @@
 import { useMemo, useState } from 'react';
 import {
   Plus, Edit2, Trash2, Search, Download, ChevronLeft, ChevronRight,
-  KeyRound, Ban, RotateCcw, AlertTriangle,
+  KeyRound, Ban, RotateCcw, AlertTriangle, ShieldOff, History, Crown, Upload, X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { userAPI } from '@/lib/api';
 import type { User, Booking } from '@/types';
-import { Modal, Input } from '@/components/admin/FormControls';
+import { Modal, Input, TextArea, Select } from '@/components/admin/FormControls';
 
 const PAGE_SIZE = 8;
+
+const LOYALTY_TIERS = ['none', 'bronze', 'silver', 'gold', 'platinum'];
 
 const statusOf = (u: User): 'active' | 'inactive' | 'banned' => {
   if (u.isBanned) return 'banned';
@@ -17,13 +19,16 @@ const statusOf = (u: User): 'active' | 'inactive' | 'banned' => {
   return 'active';
 };
 
-export default function CustomersManager({ customers, bookings, onReload }: { customers: User[]; bookings: Booking[]; onReload: () => void }) {
+export default function CustomersManager({ customers, bookings, hotels, onReload }: { customers: User[]; bookings: Booking[]; hotels: any[]; onReload: () => void }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [hotelFilter, setHotelFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [minBookings, setMinBookings] = useState(0);
   const [page, setPage] = useState(1);
+  const [uploading, setUploading] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState<User | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,10 +57,11 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
     const q = search.toLowerCase();
     const matchesSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone || '').includes(q);
     const matchesStatus = !statusFilter || statusOf(u) === statusFilter;
+    const matchesHotel = !hotelFilter || bookings.some(b => b.userId === u._id && b.hotelId === hotelFilter);
     const matchesFrom = !dateFrom || new Date(u.createdAt) >= new Date(dateFrom);
     const matchesTo = !dateTo || new Date(u.createdAt) <= new Date(`${dateTo}T23:59:59`);
-    return matchesSearch && matchesStatus && matchesFrom && matchesTo && u._bookingsCount >= minBookings;
-  }), [enriched, search, statusFilter, dateFrom, dateTo, minBookings]);
+    return matchesSearch && matchesStatus && matchesHotel && matchesFrom && matchesTo && u._bookingsCount >= minBookings;
+  }), [enriched, search, statusFilter, hotelFilter, bookings, dateFrom, dateTo, minBookings]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -80,14 +86,38 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
   };
 
   // ── Create / Edit ──
-  const openCreate = () => { setEditingId(null); setForm({}); setModalOpen(true); };
-  const openEdit = (u: User) => { setEditingId(u._id!); setForm({ name: u.name, email: u.email, phone: u.phone }); setModalOpen(true); };
+  const openCreate = () => { setEditingId(null); setForm({ loyaltyTier: 'none', isVIP: false }); setModalOpen(true); };
+  const openEdit = (u: User) => {
+    setEditingId(u._id!);
+    setForm({
+      name: u.name, email: u.email, phone: u.phone,
+      preferences: u.preferences || '', notes: u.notes || '', idDocument: u.idDocument || '',
+      loyaltyTier: u.loyaltyTier || 'none', loyaltyPoints: u.loyaltyPoints || 0, isVIP: !!u.isVIP,
+    });
+    setModalOpen(true);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await userAPI.uploadId(file);
+      setForm((f: any) => ({ ...f, idDocument: res.url }));
+      toast.success('ID document uploaded');
+    } catch (err: any) { toast.error(err.message); }
+    finally { setUploading(false); e.target.value = ''; }
+  };
 
   const handleSave = async () => {
     if (!form.name || !form.email) { toast.error('Name and email are required'); return; }
     try {
       if (editingId) {
-        await userAPI.update(editingId, { name: form.name, email: form.email, phone: form.phone });
+        await userAPI.update(editingId, {
+          name: form.name, email: form.email, phone: form.phone,
+          preferences: form.preferences, notes: form.notes, idDocument: form.idDocument,
+          loyaltyTier: form.loyaltyTier, loyaltyPoints: Number(form.loyaltyPoints || 0), isVIP: !!form.isVIP,
+        });
         toast.success('Customer updated');
       } else {
         if (!form.password || form.password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
@@ -160,6 +190,15 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
       onReload();
     } catch (err: any) { toast.error(err.message); }
   };
+  const confirmAnonymize = async () => {
+    if (!deleteTarget) return;
+    try {
+      await userAPI.anonymize(deleteTarget._id!);
+      toast.success('Guest anonymized — PII scrubbed, booking history preserved');
+      setDeleteTarget(null);
+      onReload();
+    } catch (err: any) { toast.error(err.message); }
+  };
 
   const statusColor = (s: string) =>
     s === 'active' ? 'border-green-500/30 text-green-400' :
@@ -196,6 +235,11 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="banned">Banned</option>
+        </select>
+        <select value={hotelFilter} onChange={e => setHotelFilter(e.target.value)}
+          className="bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-xl text-sm focus:outline-none">
+          <option value="">All Hotels</option>
+          {hotels.map((h: any) => <option key={h._id} value={h._id}>{h.name}</option>)}
         </select>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
           className="bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-xl text-sm focus:outline-none" />
@@ -241,17 +285,33 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="border-b border-gray-800 bg-gray-800/50">
-            {['Customer', 'Phone', 'Bookings', 'Total Spent', 'KYC', 'Status', 'Joined', 'Actions'].map(h => (
+            {['Customer', 'Phone', 'Bookings', 'Total Spent', 'Loyalty', 'KYC', 'Status', 'Joined', 'Actions'].map(h => (
               <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">{h}</th>
             ))}
           </tr></thead>
           <tbody>
             {paged.map(u => (
               <tr key={u._id} className="border-b border-gray-800/50">
-                <td className="py-3 px-4"><div className="flex items-center gap-2"><div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-xs font-bold">{u.name[0]}</div><div><p className="text-white">{u.name}</p><p className="text-xs text-gray-500">{u.email}</p></div></div></td>
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center text-white text-xs font-bold">{u.name[0]}</div>
+                    <div>
+                      <p className="text-white flex items-center gap-1.5">
+                        {u.name}
+                        {u.isVIP && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+                        {u.isAnonymized && <span className="text-[10px] bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">Anonymized</span>}
+                      </p>
+                      <p className="text-xs text-gray-500">{u.email}</p>
+                    </div>
+                  </div>
+                </td>
                 <td className="py-3 px-4 text-gray-400">{u.phone || '—'}</td>
                 <td className="py-3 px-4 text-white">{u._bookingsCount}</td>
                 <td className="py-3 px-4 text-amber-400 font-bold">₹{u._spent.toLocaleString()}</td>
+                <td className="py-3 px-4">
+                  <span className="text-xs text-gray-300 capitalize">{u.loyaltyTier && u.loyaltyTier !== 'none' ? u.loyaltyTier : '—'}</span>
+                  <p className="text-[10px] text-gray-500">{u.loyaltyPoints || 0} pts</p>
+                </td>
                 <td className="py-3 px-4">
                   <select value={u.kycStatus || 'unverified'} onChange={e => updateKyc(u._id!, e.target.value)}
                     className="text-xs px-2 py-1 rounded-full bg-transparent border border-gray-700 text-gray-300 outline-none cursor-pointer capitalize">
@@ -264,6 +324,7 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
                 <td className="py-3 px-4 text-gray-400">{new Date(u.createdAt).toLocaleDateString()}</td>
                 <td className="py-3 px-4">
                   <div className="flex gap-1.5">
+                    <button onClick={() => setHistoryTarget(u)} className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-blue-400 rounded-lg"><History className="w-3.5 h-3.5" /></button>
                     <button onClick={() => openEdit(u)} className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-amber-400 rounded-lg"><Edit2 className="w-3.5 h-3.5" /></button>
                     <button onClick={() => setResetTarget(u)} className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-blue-400 rounded-lg"><KeyRound className="w-3.5 h-3.5" /></button>
                     {u.isBanned ? (
@@ -277,7 +338,7 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
               </tr>
             ))}
             {paged.length === 0 && (
-              <tr><td colSpan={8} className="text-center py-10 text-gray-500">No customers match your filters.</td></tr>
+              <tr><td colSpan={9} className="text-center py-10 text-gray-500">No customers match your filters.</td></tr>
             )}
           </tbody>
         </table>
@@ -294,12 +355,72 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
 
       {/* CREATE / EDIT MODAL */}
       {modalOpen && (
-        <Modal title={editingId ? 'Edit Customer' : 'Add Customer'} onClose={() => { setModalOpen(false); setEditingId(null); setForm({}); }} onSave={handleSave}>
+        <Modal title={editingId ? 'Edit Guest Profile' : 'Add Guest (Walk-in Registration)'} onClose={() => { setModalOpen(false); setEditingId(null); setForm({}); }} onSave={handleSave}>
           <Input label="Full Name *" value={form.name || ''} onChange={(v: string) => setForm({ ...form, name: v })} />
           <Input label="Email *" value={form.email || ''} onChange={(v: string) => setForm({ ...form, email: v })} type="email" />
           <Input label="Phone" value={form.phone || ''} onChange={(v: string) => setForm({ ...form, phone: v })} type="tel" />
           {!editingId && <Input label="Password *" value={form.password || ''} onChange={(v: string) => setForm({ ...form, password: v })} />}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">ID Document</label>
+            <div className="flex items-center gap-3">
+              {form.idDocument ? (
+                <div className="relative group">
+                  <img src={form.idDocument} className="w-20 h-20 object-cover rounded-lg" />
+                  <button onClick={() => setForm({ ...form, idDocument: '' })} className="absolute top-1 right-1 bg-black/70 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : null}
+              <label className="flex flex-col items-center justify-center w-20 h-20 border-2 border-dashed border-gray-700 rounded-lg cursor-pointer text-gray-500 hover:border-amber-500 hover:text-amber-400">
+                <Upload className="w-4 h-4 mb-1" />
+                <span className="text-[10px]">{uploading ? 'Uploading…' : 'Upload'}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+              </label>
+            </div>
+          </div>
+
+          <TextArea label="Special Notes" value={form.notes || ''} onChange={(v: string) => setForm({ ...form, notes: v })} />
+          <TextArea label="Preferences (e.g. non-smoking, extra pillows)" value={form.preferences || ''} onChange={(v: string) => setForm({ ...form, preferences: v })} />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select label="Loyalty Tier" value={form.loyaltyTier || 'none'} onChange={(v: string) => setForm({ ...form, loyaltyTier: v })} options={LOYALTY_TIERS} />
+            <Input label="Loyalty Points" value={form.loyaltyPoints ?? 0} onChange={(v: string) => setForm({ ...form, loyaltyPoints: Number(v) })} type="number" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+            <input type="checkbox" checked={!!form.isVIP} onChange={e => setForm({ ...form, isVIP: e.target.checked })} />
+            VIP Guest
+          </label>
         </Modal>
+      )}
+
+      {/* VISIT HISTORY MODAL */}
+      {historyTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">Visit History — {historyTarget.name}</h3>
+              <button onClick={() => setHistoryTarget(null)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800"><X className="w-4 h-4" /></button>
+            </div>
+            {bookings.filter(b => b.userId === historyTarget._id).length === 0 ? (
+              <p className="text-sm text-gray-500">No bookings yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {bookings.filter(b => b.userId === historyTarget._id).sort((a, b) => new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime()).map(b => (
+                  <div key={b._id} className="bg-gray-800/60 rounded-xl px-4 py-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-white text-sm font-semibold">{b.hotelName}</p>
+                      <p className="text-amber-400 text-sm font-bold">₹{b.totalPrice.toLocaleString()}</p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {new Date(b.checkIn).toLocaleDateString()} → {new Date(b.checkOut).toLocaleDateString()} · <span className="capitalize">{b.status}</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* RESET PASSWORD MODAL */}
@@ -347,6 +468,14 @@ export default function CustomersManager({ customers, bookings, onReload }: { cu
               <p className="text-sm font-semibold text-white mb-1">Soft Delete (recommended)</p>
               <p className="text-xs text-gray-400 mb-3">Hides the account. Reversible from "Show Deleted". Logged to the audit trail.</p>
               <button onClick={confirmSoftDelete} className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-semibold">Move to Trash</button>
+            </div>
+
+            <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 mb-4">
+              <p className="text-sm font-semibold text-purple-400 mb-1 flex items-center gap-1.5"><ShieldOff className="w-4 h-4" /> Anonymize (GDPR)</p>
+              <p className="text-xs text-gray-400 mb-3">Scrubs name/email/phone/notes/ID to placeholders and logs them out, but keeps the record so booking counts and history stay accurate.</p>
+              <button onClick={confirmAnonymize} className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg text-sm font-semibold">
+                Anonymize Guest
+              </button>
             </div>
 
             <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4 mb-4">

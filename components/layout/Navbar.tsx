@@ -27,6 +27,7 @@ export default function Navbar() {
     { label: 'Home',      href: '/' },
     { label: 'Hotels',    href: '/hotels' },
     { label: 'Rooms',     href: '/room' },
+    { label: 'Restaurant', href: '/restaurant' },
     { label: 'Amenities', href: '/amenities' },
     { label: 'Blogs',     href: '/blogs' },
     { label: 'Offers',    href: '/offers' },
@@ -79,10 +80,12 @@ export default function Navbar() {
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-amber-50">
                       <LayoutDashboard className="w-4 h-4 text-amber-500" /> Dashboard
                     </button>
-                    <button onClick={() => { router.push('/dashboard'); setMenu(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-amber-50">
-                      <User className="w-4 h-4 text-blue-500" /> My Profile
-                    </button>
+                    {user.role === 'user' && (
+                      <button onClick={() => { router.push('/dashboard'); setMenu(false); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-amber-50">
+                        <User className="w-4 h-4 text-blue-500" /> My Profile
+                      </button>
+                    )}
                     <button onClick={() => { logout(); router.push('/'); setMenu(false); }}
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 border-t border-amber-50">
                       <LogOut className="w-4 h-4" /> Sign Out

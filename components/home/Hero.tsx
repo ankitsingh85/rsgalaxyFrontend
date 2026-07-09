@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, MapPin, Calendar, Users } from 'lucide-react';
 
@@ -9,11 +9,26 @@ export default function Hero() {
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [guests, setGuests] = useState('2');
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setScrollY(window.scrollY);
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
     <section className="relative h-screen min-h-[600px] flex flex-col justify-end overflow-hidden -mt-20">
-      <div className="absolute inset-0">
-        <img src="https://images.pexels.com/photos/14917401/pexels-photo-14917401.jpeg?w=1920" alt="" className="w-full h-full object-cover" />
+      <div className="absolute inset-0 -top-20" style={{ transform: `translateY(${scrollY * 0.35}px)` }}>
+        <img src="https://images.pexels.com/photos/14917401/pexels-photo-14917401.jpeg?w=1920" alt="" className="w-full h-[calc(100%+160px)] object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/20" />
       </div>
 
@@ -49,7 +64,14 @@ export default function Hero() {
                 </select>
               </div>
               <div className="col-span-2 lg:col-span-1">
-                <button onClick={() => router.push(`/hotels?city=${city}`)} className="w-full h-full bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 py-3 shadow-lg">
+                <button onClick={() => {
+                  const params = new URLSearchParams();
+                  if (city !== 'All Cities') params.set('city', city);
+                  if (checkIn) params.set('checkIn', checkIn);
+                  if (checkOut) params.set('checkOut', checkOut);
+                  if (guests) params.set('guests', guests);
+                  router.push(`/room?${params.toString()}`);
+                }} className="w-full h-full bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 py-3 shadow-lg">
                   <Search className="w-4 h-4" /> Search
                 </button>
               </div>
